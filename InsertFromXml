@@ -1,0 +1,22 @@
+USE [Dosyalar]
+GO
+
+--delete from dbo.Foto
+select * from dbo.Foto (nolock)
+
+
+INSERT INTO [dbo].[Foto]
+           ([DosyaAdi]
+           ,[DosyaLokasyon]           
+           ,[ResimZamani]
+           ,[KameraMarka]
+           ,[KameraModel])
+SELECT
+   MY_XML.PhotoInfo.query('FileName').value('.', 'VARCHAR(100)'),
+   MY_XML.PhotoInfo.query('FilePath').value('.', 'VARCHAR(500)'),
+   MY_XML.PhotoInfo.query('DateTakenStr').value('.', 'DATETIME'),
+   MY_XML.PhotoInfo.query('CameraType').value('.', 'VARCHAR(100)'),
+   MY_XML.PhotoInfo.query('CameraModel').value('.', 'VARCHAR(100)')
+FROM (SELECT CAST(MY_XML AS xml)
+      FROM OPENROWSET(BULK 'C:\res.xml', SINGLE_BLOB) AS T(MY_XML)) AS T(MY_XML)
+      CROSS APPLY MY_XML.nodes('ArrayOfPhotoInfo/PhotoInfo') AS MY_XML (PhotoInfo);
