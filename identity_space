@@ -1,0 +1,56 @@
+
+
+CREATE TABLE [#identity_columns]
+		   ( [database_name]                 SYSNAME NOT NULL
+		   , [schema_name]                   SYSNAME NOT NULL
+		   , [table_name]                    SYSNAME NOT NULL
+		   , [column_name]                   SYSNAME NOT NULL
+		   , [type_name]                     SYSNAME NOT NULL
+		   , [maximum_identity_value]         BIGINT NOT NULL
+		   , [current_identity_value]         BIGINT NULL
+		   , [percent_consumed]       DECIMAL(25, 4) NULL
+		   );
+
+DECLARE @Table_Name NVARCHAR(MAX);
+
+DECLARE @Schema_Name NVARCHAR(MAX)
+
+DECLARE @Sql_Command NVARCHAR(MAX) = '';
+
+SELECT       @Sql_Command = @Sql_Command + '
+INSERT INTO #identity_columns
+	([database_name], [schema_name], table_name, column_name, [type_name], maximum_identity_value, current_identity_value)
+SELECT
+	DB_NAME() AS database_name,
+	''' + [schemas].[name] + ''' AS schema_name,
+	''' + [tables].[name] + ''' AS table_name,
+	''' + [columns].[name] + ''' AS column_name,
+	''' + [types].[name] + ''' AS type_name,
+	CASE
+		WHEN ''' + [types].[name] + ''' = ''tinyint'' THEN CAST(255 AS BIGINT)
+		WHEN ''' + [types].[name] + ''' = ''smallint'' THEN CAST(32767 AS BIGINT)
+		WHEN ''' + [types].[name] + ''' = ''int'' THEN CAST(2147483647 AS BIGINT)
+		WHEN ''' + [types].[name] + ''' = ''bigint'' THEN CAST(9223372036854775807 AS BIGINT)
+		WHEN ''' + [types].[name] + ''' IN (''decimal'', ''numeric'') THEN CAST(REPLICATE(9, (' + CAST([columns].[precision] AS VARCHAR(MAX)) + ' - ' + CAST([columns].[scale] AS VARCHAR(MAX)) + ')) AS BIGINT)
+		ELSE -1
+	END AS maximum_identity_value,
+	IDENT_CURRENT(''[' + [schemas].[name] + '].[' + [tables].[name] + ']'') AS current_identity_value;
+'
+--select *
+	  FROM  [sys].[tables]
+		   INNER JOIN [sys].[columns] ON [tables].object_id = [columns].object_id
+		   INNER JOIN [sys].[types] ON [types].[user_type_id] = [columns].[user_type_id]
+		   INNER JOIN [sys].[schemas] ON [schemas].schema_id = [tables].schema_id
+	  WHERE [columns].[is_identity] = 1;
+
+EXEC [sp_executesql] 
+	@Sql_Command;
+
+UPDATE     [#identity_columns]
+	  SET 
+		 [percent_consumed] = CAST(CAST([current_identity_value] AS DECIMAL(25, 4)) / CAST([maximum_identity_value] AS DECIMAL(25, 4)) AS DECIMAL(25, 2)) * 100;
+
+SELECT       *
+	  FROM  [#identity_columns]
+	  --WHERE [percent_consumed] > 1
+	  ORDER BY [percent_consumed] DESC
