@@ -1,4 +1,4 @@
-
+--DB'deki identity kolonların ne kadar yerinin kaldığını gösterir
 
 CREATE TABLE [#identity_columns]
 		   ( [database_name]                 SYSNAME NOT NULL
